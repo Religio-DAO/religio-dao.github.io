@@ -1,0 +1,46 @@
+
+name: Cleanup After Decision
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: 'Post title'
+        required: true
+      proposal_id:
+        description: 'NFT proposal ID'
+        required: true
+      decision:
+        description: 'Proposal decision (approved/rejected)'
+        required: true
+        type: choice
+        options:
+          - approved
+          - rejected
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Move to Archived
+        run: |
+          CLEAN_TITLE=$(echo "${{ github.event.inputs.title }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
+          PENDING_PATH="review/pending/${CLEAN_TITLE}.md"
+          ARCHIVED_PATH="review/archived/${CLEAN_TITLE}.md"
+          
+          # Move file to archived
+          mkdir -p review/archived
+          mv "$PENDING_PATH" "$ARCHIVED_PATH"
+          
+          # Add decision to metadata
+          sed -i "1i---\ndecision: ${{ github.event.inputs.decision }}\ndecided_at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')\n---\n" "$ARCHIVED_PATH"
+          
+      - name: Commit Cleanup
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add review/
+          git commit -m "Archive review draft: ${{ github.event.inputs.title }} (${{ github.event.inputs.decision }})"
+          git push
