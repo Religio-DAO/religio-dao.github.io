@@ -1,0 +1,51 @@
+name: Store Draft for Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: 'Post title'
+        required: true
+      content:
+        description: 'Post content'
+        required: true
+      metadata:
+        description: 'Post metadata (JSON)'
+        required: true
+      proposal_id:
+        description: 'NFT proposal ID'
+        required: true
+
+jobs:
+  store:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Create Review Draft
+        run: |
+          # Create clean filename from title
+          CLEAN_TITLE=$(echo "${{ github.event.inputs.title }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
+          DRAFT_PATH="review/pending/${CLEAN_TITLE}.md"
+          
+          # Store content with metadata
+          echo "---" > "$DRAFT_PATH"
+          echo "title: ${{ github.event.inputs.title }}" >> "$DRAFT_PATH"
+          echo "proposal_id: ${{ github.event.inputs.proposal_id }}" >> "$DRAFT_PATH"
+          echo "submitted_at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$DRAFT_PATH"
+          echo "metadata: |" >> "$DRAFT_PATH"
+          echo "${{ github.event.inputs.metadata }}" | sed 's/^/  /' >> "$DRAFT_PATH"
+          echo "---" >> "$DRAFT_PATH"
+          echo "" >> "$DRAFT_PATH"
+          echo "${{ github.event.inputs.content }}" >> "$DRAFT_PATH"
+          
+          # Set review URL as output
+          echo "review_url=https://github.com/${{ github.repository }}/blob/main/${DRAFT_PATH}" >> $GITHUB_OUTPUT
+      
+      - name: Commit Draft
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add review/pending/
+          git commit -m "Add review draft: ${{ github.event.inputs.title }}"
+          git push
